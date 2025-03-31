@@ -38,7 +38,7 @@ class DetNuscEvaluator():
         self,
         class_names,
         eval_version='detection_cvpr_2019',
-        data_root='./data/nuScenes',
+        data_root='./data/nuscenes',
         version='v1.0-trainval',
         modality=dict(use_lidar=False,
                       use_camera=True,

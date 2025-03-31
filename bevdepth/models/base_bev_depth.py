@@ -53,11 +53,11 @@ class BaseBEVDepth(nn.Module):
             tuple(list[dict]): Output results for tasks.
         """
         if self.is_train_depth and self.training:
-            x, depth_pred = self.backbone(x,
-                                          mats_dict,
+            x, depth_pred = self.backbone(x, #torch.Size([8, 2, 6, 3, 256, 704])
+                                          mats_dict, #dict_keys(['sensor2ego_mats', 'intrin_mats', 'ida_mats', 'sensor2sensor_mats', 'bda_mat'])
                                           timestamps,
                                           is_return_depth=True)
-            preds = self.head(x)
+            preds = self.head(x) #x: torch.Size([8, 160, 128, 128])
             return preds, depth_pred
         else:
             x = self.backbone(x, mats_dict, timestamps)

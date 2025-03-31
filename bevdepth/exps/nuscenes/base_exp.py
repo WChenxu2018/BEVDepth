@@ -187,7 +187,7 @@ class BEVDepthLightningModel(LightningModule):
 
     def __init__(self,
                  gpus: int = 1,
-                 data_root='data/nuScenes',
+                 data_root='data/nuscenes',
                  eval_interval=1,
                  batch_size_per_device=8,
                  class_names=CLASSES,
@@ -246,7 +246,7 @@ class BEVDepthLightningModel(LightningModule):
             sweep_imgs = sweep_imgs.cuda()
             gt_boxes = [gt_box.cuda() for gt_box in gt_boxes]
             gt_labels = [gt_label.cuda() for gt_label in gt_labels]
-        preds, depth_preds = self(sweep_imgs, mats)
+        preds, depth_preds = self(sweep_imgs, mats) #sweep_imgs: torch.Size([8, 2, 6, 3, 256, 704]), [B, ?, CANMERA, C, H, W]
         if isinstance(self.model, torch.nn.parallel.DistributedDataParallel):
             targets = self.model.module.get_targets(gt_boxes, gt_labels)
             detection_loss = self.model.module.loss(targets, preds)

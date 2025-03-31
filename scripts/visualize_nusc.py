@@ -146,13 +146,13 @@ def demo(
         'CAM_FRONT_LEFT', 'CAM_FRONT', 'CAM_FRONT_RIGHT', 'CAM_BACK_RIGHT',
         'CAM_BACK', 'CAM_BACK_LEFT'
     ]
-    infos = mmcv.load('data/nuScenes/nuscenes_12hz_infos_val.pkl')
+    infos = mmcv.load('data/nuscenes/nuscenes_12hz_infos_val.pkl')
     assert idx < len(infos)
     # Get data from dataset
     results = mmcv.load(nusc_results_file)['results']
     info = infos[idx]
     lidar_path = info['lidar_infos']['LIDAR_TOP']['filename']
-    lidar_points = np.fromfile(os.path.join('data/nuScenes', lidar_path),
+    lidar_points = np.fromfile(os.path.join('data/nuscenes', lidar_path),
                                dtype=np.float32,
                                count=-1).reshape(-1, 5)[..., :4]
     lidar_calibrated_sensor = info['lidar_infos']['LIDAR_TOP'][
@@ -214,7 +214,7 @@ def demo(
         plt.ylim(900, 0)
 
         img = mmcv.imread(
-            os.path.join('data/nuScenes', info['cam_infos'][k]['filename']))
+            os.path.join('data/nuscenes', info['cam_infos'][k]['filename']))
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
         # Draw images

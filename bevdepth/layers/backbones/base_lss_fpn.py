@@ -211,13 +211,13 @@ class DepthNet(nn.Module):
         )
 
     def forward(self, x, mats_dict):
-        intrins = mats_dict['intrin_mats'][:, 0:1, ..., :3, :3]
+        intrins = mats_dict['intrin_mats'][:, 0:1, ..., :3, :3] #torch.Size([8, 2, 6, 4, 4]) -> torch.Size([8, 1, 6, 3, 3]) 内参
         batch_size = intrins.shape[0]
         num_cams = intrins.shape[2]
-        ida = mats_dict['ida_mats'][:, 0:1, ...]
+        ida = mats_dict['ida_mats'][:, 0:1, ...] #torch.Size([8, 2, 6, 4, 4]) -> torch.Size([8, 1, 6, 4, 4]) 外参
         sensor2ego = mats_dict['sensor2ego_mats'][:, 0:1, ..., :3, :]
         bda = mats_dict['bda_mat'].view(batch_size, 1, 1, 4,
-                                        4).repeat(1, 1, num_cams, 1, 1)
+                                        4).repeat(1, 1, num_cams, 1, 1) #torch.Size([8, 1, 6, 4, 4])
         mlp_input = torch.cat(
             [
                 torch.stack(
@@ -244,14 +244,14 @@ class DepthNet(nn.Module):
             ],
             -1,
         )
-        mlp_input = self.bn(mlp_input.reshape(-1, mlp_input.shape[-1]))
-        x = self.reduce_conv(x)
-        context_se = self.context_mlp(mlp_input)[..., None, None]
+        mlp_input = self.bn(mlp_input.reshape(-1, mlp_input.shape[-1])) #torch.Size([48, 27])
+        x = self.reduce_conv(x) #torch.Size([48, 512, 16, 44])
+        context_se = self.context_mlp(mlp_input)[..., None, None] #torch.Size([48, 512, 1, 1])
         context = self.context_se(x, context_se)
-        context = self.context_conv(context)
+        context = self.context_conv(context) #torch.Size([48, 80, 16, 44])
         depth_se = self.depth_mlp(mlp_input)[..., None, None]
         depth = self.depth_se(x, depth_se)
-        depth = self.depth_conv(depth)
+        depth = self.depth_conv(depth) #torch.Size([48, 112, 16, 44])
         return torch.cat([depth, context], dim=1)
 
 
@@ -439,24 +439,24 @@ class BaseLSSFPN(nn.Module):
 
         # undo post-transformation
         # B x N x D x H x W x 3
-        points = self.frustum
-        ida_mat = ida_mat.view(batch_size, num_cams, 1, 1, 1, 4, 4)
-        points = ida_mat.inverse().matmul(points.unsqueeze(-1))
+        points = self.frustum #torch.Size([112, 16, 44, 4])
+        ida_mat = ida_mat.view(batch_size, num_cams, 1, 1, 1, 4, 4) #torch.Size([8, 6, 1, 1, 1, 4, 4]) 图像信息增强矩阵
+        points = ida_mat.inverse().matmul(points.unsqueeze(-1)) #torch.Size([8, 6, 112, 16, 44, 4, 1])
         # cam_to_ego
         points = torch.cat(
             (points[:, :, :, :, :, :2] * points[:, :, :, :, :, 2:3],
              points[:, :, :, :, :, 2:]), 5)
 
-        combine = sensor2ego_mat.matmul(torch.inverse(intrin_mat))
+        combine = sensor2ego_mat.matmul(torch.inverse(intrin_mat)) #torch.Size([8, 6, 4, 4])
         points = combine.view(batch_size, num_cams, 1, 1, 1, 4,
-                              4).matmul(points)
+                              4).matmul(points) #torch.Size([8, 6, 112, 16, 44, 4, 1])
         if bda_mat is not None:
             bda_mat = bda_mat.unsqueeze(1).repeat(1, num_cams, 1, 1).view(
                 batch_size, num_cams, 1, 1, 1, 4, 4)
             points = (bda_mat @ points).squeeze(-1)
         else:
             points = points.squeeze(-1)
-        return points[..., :3]
+        return points[..., :3] #torch.Size([8, 6, 112, 16, 44, 3]) bev上的坐标
 
     def get_cam_feats(self, imgs):
         """Get feature maps from images."""
@@ -504,22 +504,22 @@ class BaseLSSFPN(nn.Module):
         """
         batch_size, num_sweeps, num_cams, num_channels, img_height, \
             img_width = sweep_imgs.shape
-        img_feats = self.get_cam_feats(sweep_imgs)
+        img_feats = self.get_cam_feats(sweep_imgs) #torch.Size([8, 1, 6, 3, 256, 704]) -> torch.Size([8, 1, 6, 512, 16, 44])
         source_features = img_feats[:, 0, ...]
         depth_feature = self._forward_depth_net(
             source_features.reshape(batch_size * num_cams,
                                     source_features.shape[2],
                                     source_features.shape[3],
-                                    source_features.shape[4]),
+                                    source_features.shape[4]), #torch.Size([48, 512, 16, 44])
             mats_dict,
-        )
+        ) #torch.Size([48, 192, 16, 44]) [B, Depth+Context, H, W]
         depth = depth_feature[:, :self.depth_channels].softmax(
             dim=1, dtype=depth_feature.dtype)
         geom_xyz = self.get_geometry(
             mats_dict['sensor2ego_mats'][:, sweep_index, ...],
             mats_dict['intrin_mats'][:, sweep_index, ...],
-            mats_dict['ida_mats'][:, sweep_index, ...],
-            mats_dict.get('bda_mat', None),
+            mats_dict['ida_mats'][:, sweep_index, ...], #'ida_mats':图像数据增强矩阵
+            mats_dict.get('bda_mat', None),#bda_mat: bev特征增强矩阵 
         )
         geom_xyz = ((geom_xyz - (self.voxel_coord - self.voxel_size / 2.0)) /
                     self.voxel_size).int()
@@ -528,7 +528,7 @@ class BaseLSSFPN(nn.Module):
                 1) * depth_feature[:, self.depth_channels:(
                     self.depth_channels + self.output_channels)].unsqueeze(2)
 
-            img_feat_with_depth = self._forward_voxel_net(img_feat_with_depth)
+            img_feat_with_depth = self._forward_voxel_net(img_feat_with_depth) #torch.Size([48, 1, 112, 16, 44])*torch.Size([48, 80, 1, 16, 44])=torch.Size([48, 80, 112, 16, 44]) 
 
             img_feat_with_depth = img_feat_with_depth.reshape(
                 batch_size,
@@ -537,18 +537,18 @@ class BaseLSSFPN(nn.Module):
                 img_feat_with_depth.shape[2],
                 img_feat_with_depth.shape[3],
                 img_feat_with_depth.shape[4],
-            )
+            ) #torch.Size([8, 6, 80, 112, 16, 44])
 
-            img_feat_with_depth = img_feat_with_depth.permute(0, 1, 3, 4, 5, 2)
+            img_feat_with_depth = img_feat_with_depth.permute(0, 1, 3, 4, 5, 2) #torch.Size([8, 6, 112, 16, 44, 80])
 
             feature_map = voxel_pooling_train(geom_xyz,
                                               img_feat_with_depth.contiguous(),
-                                              self.voxel_num.cuda())
+                                              self.voxel_num.cuda())#cuda实现 需要仔细看一下
         else:
             feature_map = voxel_pooling_inference(
                 geom_xyz, depth, depth_feature[:, self.depth_channels:(
                     self.depth_channels + self.output_channels)].contiguous(),
-                self.voxel_num.cuda())
+                self.voxel_num.cuda()) 
         if is_return_depth:
             # final_depth has to be fp32, otherwise the depth
             # loss will colapse during the traing process.
@@ -587,7 +587,7 @@ class BaseLSSFPN(nn.Module):
         """
         batch_size, num_sweeps, num_cams, num_channels, img_height, \
             img_width = sweep_imgs.shape
-
+        #num_sweeps： 时序的帧数
         key_frame_res = self._forward_single_sweep(
             0,
             sweep_imgs[:, 0:1, ...],

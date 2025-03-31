@@ -10,8 +10,8 @@ class BEVDepthLightningModel(BaseBEVDepthLightningModel):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.train_info_paths = [
-            'data/nuScenes/nuscenes_infos_train.pkl',
-            'data/nuScenes/nuscenes_infos_val.pkl'
+            'data/nuscenes/nuscenes_infos_train.pkl',
+            'data/nuscenes/nuscenes_infos_val.pkl'
         ]
 
 
